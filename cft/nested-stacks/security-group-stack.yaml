@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Project Hollyhock: CFN Template to create a security group for a webser in a VPC
+
+Metadata:
+  TemplateName: security-group-stack.yaml
+  TemplateType: Security Group to allow SSH and HTTP traffic.
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Hollyhock
+  Last Modified: January 27, 2024
+  Resources: 
+    - Two Security Group with rules
+    - 1) EC2 Security Group
+      - 1.1) SSH traffic from allowed IP range in us-east-1 to connect using EC2 instance connect
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label:
+        default: "Project Name And Environment:"
+      Parameters:
+      - ProjectName
+      - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+    #################################### Code Repository Bucket ####################################
+    - Label:
+        default: "Code Repository S3 Bucket:"
+      Parameters:
+      - CodeRepositoryS3Bucket
+    #################################### Security Group ############################################
+    - Label:
+        default: "Security Group Parameters"
+      Parameters: 
+      - VpcId
+      - ALBSecurityGroupName
+      - ALBSecurityGroupDescription
+      - EC2SecurityGroupName
+      - EC2SecurityGroupDescription
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      ################################## Code Repository Bucket ####################################
+      CodeRepositoryS3Bucket:
+        default: "Code Repository S3 Bucket."
+      ##################################Security Group #############################################
+      VpcId:
+        default: "VPC Id where the security group needs to be created."
+      ALBSecurityGroupName: 
+        default: "Application Load Balancer Security Group name."
+      ALBSecurityGroupDescription: 
+        default: "Application Load Balancer Security Group description."
+      EC2SecurityGroupName: 
+        default: "Ec2 Security Group name."
+      EC2SecurityGroupDescription: 
+        default: "EC2 Security Group description."
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: hollyhock
+    Description: "The Project Name for which the custom resource will be used."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 001-tarius
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String
+  ###################################### Code Repository S3 Bucket #################################
+  CodeRepositoryS3Bucket:
+    Default: subhamay-projects-repository-237376087602-devl-us-east-1
+    Description: "Code repository S3 Bucket."
+    Type: String
+    MinLength: 10
+    MaxLength: 63
+    AllowedPattern: "[a-z][a-z0-9-.]*"
+    ConstraintDescription: "The length should be between 3 and 63, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  ###################################### Security Group ############################################
+  VpcId: 
+    Description: The VPC Id where the security group will be created.
+    Type: AWS::EC2::VPC::Id
+  EC2SecurityGroupName:
+    Type: String
+    Description: The Name of the WebServer security group.
+    MinLength: 5
+    MaxLength: 8
+    AllowedPattern: "[a-zA-Z0-9-]*"
+    ConstraintDescription: The length should be between 10 and 30, must contain only alphanumeric character and start with a uppercase letter.
+  EC2SecurityGroupDescription:
+    Type: String
+    Description: The Security group description.
+    AllowedPattern: "[a-zA-Z0-9-. ]*"
+    MinLength: 15
+    MaxLength: 50
+    ConstraintDescription: The length should be between 10 and 50, must contain only alphanumeric character and dot, space or dash and start with an uppercase letter.
+  ALBSecurityGroupName:
+    Type: String
+    Description: The Name of the WebServer security group.
+    MinLength: 5
+    MaxLength: 8
+    AllowedPattern: "[a-zA-Z-]*"
+    ConstraintDescription: The length should be between 10 and 30, must contain only alphanumeric character and start with a uppercase letter.
+  ALBSecurityGroupDescription:
+    Type: String
+    Description: The Security group description.
+    AllowedPattern: "[a-zA-Z0-9-. ]*"
+    MinLength: 15
+    MaxLength: 50
+    ConstraintDescription: The length should be between 10 and 50, must contain only alphanumeric character and dot, space or dash and start with an uppercase letter.
+Resources:
+  LBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ALBSecurityGroupName}${CiBuild}'
+      GroupDescription: !Ref ALBSecurityGroupDescription
+      SecurityGroupIngress:
+      - Description: Allow HTTP from anywhere
+        IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub 'hollyhook-asg-sg${CiBuild}'
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${EC2SecurityGroupName}${CiBuild}'
+      GroupDescription: !Ref EC2SecurityGroupDescription
+      SecurityGroupIngress:
+      - Description: Allow SSH from anywhere in us-east-1 using EC2 Instance Connect
+        IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 50.19.0.0/16
+      - Description: Allow HTTP from anywhere via Load Balancer.
+        IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId: !Ref LBSecurityGroup
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub 'hollyhook-ec2-sg${CiBuild}'
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+Outputs:
+  ASGSecurityGroupId:
+    Description: ASG Security Group Id
+    Value: !Ref LBSecurityGroup
+  EC2SecurityGroupId:
+    Description: EC2 Security Group Id
+    Value: !Ref EC2SecurityGroup

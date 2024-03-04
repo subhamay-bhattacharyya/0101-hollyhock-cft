@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Project Hollyhock: CFN Template to create EC2 Launch Template.
+
+Metadata:
+  TemplateName: ec2-launch-template-stack.yaml
+  TemplateType: EC2 launch template
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Hollyhock
+  Last Modified: Jan 27, 2024
+  Resources: 
+    - EC2 Launch Template
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label:
+        default: "Project Name And Environment:"
+      Parameters:
+      - ProjectName
+      - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+    #################################### VPC  ######################################################
+    - Label: 
+        default: "VPC:"
+      Parameters: 
+      # - VpcId
+      - EC2SecurityGroupId
+      # - PublicSubnet1AId
+      # - PublicSubnet1BId
+      - InstanceType
+      # - DesiredCapacity
+      # - MaxSize
+      - EC2AMI
+      - EC2RoleName
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      #################################### Security Group / IAM Role ###################################################
+      # VpcId: 
+      #   default: "Custom VPC Id"
+      EC2SecurityGroupId: 
+        default: "Security Group Id"
+      # PublicSubnet1AId: 
+      #   default: "Public Subnet Id - 1A"
+      # PublicSubnet1BId: 
+      #   default: "Public Subnet Id - 1B"
+      InstanceType:
+        default: "EC2 Instance Type:"
+      # DesiredCapacity:
+      #   default: "Auto Scaling Group Desired Capacity"
+      # MaxSize:
+      #   default: "Auto Scaling Group Max Size"
+      EC2AMI:
+        default: "ECS AMI"
+      EC2RoleName: 
+        default: "Name of the IAM Role attached to the EC2 instance."
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: hollyhock
+    Description: "The Project Name for which the custom resource will be used."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 0094-echinops-cft
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String
+  ###################################### Code Repository S3 Bucket #################################
+  CodeRepositoryS3Bucket:
+    Default: subhamay-projects-repository-us-east-1
+    Description: "S3 Bucket Storing The Lambda Code."
+    Type: String
+    MinLength: 10
+    MaxLength: 63
+    AllowedPattern: "[a-z][a-z0-9-.]*"
+    ConstraintDescription: "The length should be between 3 and 63, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  ###################################### Security Group / Role #####################################
+  # VpcId:
+  #   Type: String
+  #   Description: Custom Vpc Id
+  EC2SecurityGroupId: 
+    Type: String
+    Description: EC2 Security Group Id
+  EC2RoleName:
+    Type: String
+    Description: EC2 Instance IAM Role name
+  # PublicSubnet1AId: 
+  #   Type: String
+  #   Description: The Id of the public subnet 1A
+  # PublicSubnet1BId: 
+  #   Type: String
+  #   Description: The Id of the public subnet 1B
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: Class of EC2 instance used to host containers. Choose t2 for testing, m5 for general purpose, c5 for CPU intensive services, and r5 for memory intensive services
+    AllowedValues: [ t2.micro, t2.small, t2.medium, t2.large]
+    ConstraintDescription: Please choose a valid instance type.
+  EC2AMI:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+    Description: The Amazon Machine Image ID used for the cluster, leave it as the default value to get the latest AMI
+Resources:
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-instance-profile-${AWS::Region}${CiBuild}"
+      Path: /
+      Roles: 
+        - !Ref EC2RoleName
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${ProjectName}-lt-${Environment}-${AWS::Region}${CiBuild}"
+      LaunchTemplateData: 
+        IamInstanceProfile: 
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        ImageId: !Ref EC2AMI
+        InstanceType: !Ref InstanceType
+        SecurityGroupIds: 
+          - !Ref EC2SecurityGroupId
+        TagSpecifications: 
+          - ResourceType: instance
+            Tags:
+            - Key: Name
+              Value: !Sub "${ProjectName}-launch-template"
+            - Key: ProjectName
+              Value: !Ref ProjectName
+            - Key: Environment
+              Value: !Ref Environment
+            - Key: GitHubRepository
+              Value: !Ref GitHubRepository
+            - Key: CodeRepositoryS3Bucket
+              Value: !Ref CodeRepositoryS3Bucket
+            - Key: GitHubRef
+              Value: !Ref GitHubRef
+            - Key: GitHubURL
+              Value: !Ref GitHubURL
+            - Key: GitHubWFRunNumber
+              Value: !Ref GitHubWFRunNumber
+            - Key: GitHubSHA
+              Value: !Ref GitHubSHA
+        UserData: 
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Use this for your user data (script from top to bottom)
+            # install httpd (Linux 2 version)
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd
+            systemctl enable httpd
+            echo "<h1>Hello World from $(hostname -f)</h1>" > /var/www/html/index.html      LaunchTemplateName: !Sub "${ProjectName}-lt-${Environment}-${AWS::Region}${CiBuild}"
+      TagSpecifications: 
+      - ResourceType: launch-template
+        Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-ec2-launch-template"
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: CodeRepositoryS3Bucket
+          Value: !Ref CodeRepositoryS3Bucket
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+      VersionDescription: "Launch Template for EC2 Webserver."
+Outputs:
+  InstanceProfileName:
+    Description: "Instance Profile Name"
+    Value: !Ref EC2InstanceProfile
+  InstanceProfileArn:
+    Description: "Instance Profile Arn"
+    Value: !GetAtt EC2InstanceProfile.Arn
+  LaunchTemplateId: 
+    Description: The Launch Template Id
+    Value: !GetAtt EC2LaunchTemplate.LaunchTemplateId
+  LaunchTemplateLatestVer: 
+    Description: The Launch Latest Version
+    Value: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+
+
+  
