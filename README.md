@@ -1,0 +1,1 @@
+This is a demo on creating an EC2 Load Balancer running behind an EC2 Auto Scaling Group.
